@@ -32,8 +32,6 @@ fn file_partially_valid() -> Result<(), Box<dyn std::error::Error>> {
 
     cmd.arg("tests/data/integration_example_partially_valid.logs");
 
-    println!("{}", cmd.assert());
-
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("INFO: 1\nWARN: 1\nERROR: 0"))

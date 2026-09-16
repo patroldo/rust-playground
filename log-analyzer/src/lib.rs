@@ -10,16 +10,7 @@ use std::{
 #[derive(Debug)]
 pub enum ErrorReadingFile {
     ErrorOpeningFile(Error),
-    ErrorDuringFileReading,
-}
-
-impl PartialEq for ErrorReadingFile {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::ErrorOpeningFile(l0), Self::ErrorOpeningFile(r0)) => l0.kind() == r0.kind(),
-            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
-        }
-    }
+    ErrorDuringFileReading(Error),
 }
 
 pub fn parse_logs_from_file(
@@ -36,7 +27,7 @@ fn parse_logs_from_bufreader(
     let mut logs = Vec::new();
     let mut errors = Vec::new();
     for line in reader.lines() {
-        let line = line.map_err(|_| ErrorReadingFile::ErrorDuringFileReading)?;
+        let line = line.map_err(ErrorReadingFile::ErrorDuringFileReading)?;
 
         match LogEntry::try_from(line.as_str()) {
             Ok(log) => logs.push(log),
@@ -67,10 +58,12 @@ mod tests {
             parse_logs_from_file(std::path::PathBuf::from("some/path/not/exists/file.txt"));
         assert!(log_entries.is_err());
         let err = log_entries.unwrap_err();
-        assert_eq!(
-            err,
-            ErrorReadingFile::ErrorOpeningFile(Error::new(ErrorKind::NotFound, ""))
-        );
+        match err {
+            ErrorReadingFile::ErrorOpeningFile(source) => {
+                assert_eq!(source.kind(), ErrorKind::NotFound);
+            }
+            other => panic!("Unexpected error: {other:?}"),
+        }
     }
 
     #[test]
@@ -118,6 +111,11 @@ mod tests {
         let log_entries = parse_logs_from_bufreader(buf_reader);
         assert!(log_entries.is_err());
         let err = log_entries.unwrap_err();
-        assert_eq!(err, ErrorReadingFile::ErrorDuringFileReading);
+        match err {
+            ErrorReadingFile::ErrorDuringFileReading(src) => {
+                assert_eq!(src.kind(), ErrorKind::Other);
+            }
+            other => panic!("Unexpected error: {other:?}"),
+        }
     }
 }
