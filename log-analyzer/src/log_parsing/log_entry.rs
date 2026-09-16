@@ -38,18 +38,10 @@ impl TryFrom<&str> for LogEntry {
         let (timestamp_str, log_level_str, message_str): (&str, &str, &str) =
             try_to_split_str(value)?;
 
-        let timestamp = DateTime::parse_from_rfc3339(timestamp_str).or(Err(
-            ParseLogError::UnparsableTimeStamp(String::from(timestamp_str)),
-        ))?;
-        let log_level: LogLevel = match LogLevel::try_from(log_level_str) {
-            Ok(parsed_log_level) => parsed_log_level,
-            Err(e) => {
-                return Err(ParseLogError::UnparsableLogLevelType(
-                    String::from(value),
-                    e,
-                ));
-            }
-        };
+        let timestamp = DateTime::parse_from_rfc3339(timestamp_str)
+            .map_err(|_| ParseLogError::UnparsableTimeStamp(String::from(timestamp_str)))?;
+        let log_level: LogLevel = LogLevel::try_from(log_level_str)
+            .map_err(|e| ParseLogError::UnparsableLogLevelType(String::from(value), e))?;
         let message = String::from(message_str);
 
         Ok(LogEntry {
@@ -68,7 +60,7 @@ mod tests {
     fn parse_rfc3339_parsing_happy_path() {
         fn parse_time_stamp(str: &str) -> Result<DateTime<FixedOffset>, ParseLogError> {
             DateTime::parse_from_rfc3339(str)
-                .or(Err(ParseLogError::UnparsableTimeStamp(String::from(str))))
+                .map_err(|_| ParseLogError::UnparsableTimeStamp(String::from(str)))
         }
 
         let str = "2026-09-11T10:01:03Z";

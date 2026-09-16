@@ -8,7 +8,7 @@ fn file_doesnt_exist() -> Result<(), Box<dyn std::error::Error>> {
     cmd.arg("test/file/doesnt/exist");
     cmd.assert()
         .failure()
-        .stderr(predicate::str::contains("Error: FileNotExists"));
+        .stderr(predicate::str::contains("No such file or directory"));
 
     Ok(())
 }

@@ -4,19 +4,28 @@ use crate::log_parsing::log_entry::ParseLogError;
 use log_parsing::log_entry::LogEntry;
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Error},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum ErrorReadingFile {
-    FileNotExists,
+    ErrorOpeningFile(Error),
     ErrorDuringFileReading,
+}
+
+impl PartialEq for ErrorReadingFile {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::ErrorOpeningFile(l0), Self::ErrorOpeningFile(r0)) => l0.kind() == r0.kind(),
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
 }
 
 pub fn parse_logs_from_file(
     path: std::path::PathBuf,
 ) -> Result<(Vec<LogEntry>, Vec<ParseLogError>), ErrorReadingFile> {
-    let f = File::open(path).map_err(|_| ErrorReadingFile::FileNotExists)?;
+    let f = File::open(path).map_err(ErrorReadingFile::ErrorOpeningFile)?;
     let reader = BufReader::new(f);
     parse_logs_from_bufreader(reader)
 }
@@ -27,10 +36,7 @@ fn parse_logs_from_bufreader(
     let mut logs = Vec::new();
     let mut errors = Vec::new();
     for line in reader.lines() {
-        let line = match line {
-            Ok(it) => it,
-            Err(_) => Err(ErrorReadingFile::ErrorDuringFileReading)?,
-        };
+        let line = line.map_err(|_| ErrorReadingFile::ErrorDuringFileReading)?;
 
         match LogEntry::try_from(line.as_str()) {
             Ok(log) => logs.push(log),
@@ -42,7 +48,7 @@ fn parse_logs_from_bufreader(
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Cursor, Error, Read};
+    use std::io::{Cursor, Error, ErrorKind, Read};
 
     use super::*;
 
@@ -61,7 +67,10 @@ mod tests {
             parse_logs_from_file(std::path::PathBuf::from("some/path/not/exists/file.txt"));
         assert!(log_entries.is_err());
         let err = log_entries.unwrap_err();
-        assert_eq!(err, ErrorReadingFile::FileNotExists);
+        assert_eq!(
+            err,
+            ErrorReadingFile::ErrorOpeningFile(Error::new(ErrorKind::NotFound, ""))
+        );
     }
 
     #[test]
