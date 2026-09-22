@@ -97,7 +97,7 @@ mod tests {
     type MultipleFilesSearchFunctionType =
         for<'a> fn(
             search_str: &str,
-            files: &'a Vec<PathBuf>,
+            files: &'a [PathBuf],
         ) -> HashMap<&'a PathBuf, Result<Vec<String>, Error>>;
 
     use std::io::ErrorKind;
