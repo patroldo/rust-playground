@@ -22,7 +22,7 @@ pub fn find_string_in_file(search_str: &str, file: &PathBuf) -> Result<Vec<Strin
 
 pub fn find_string_in_multiple_files<'a>(
     search_str: &str,
-    files: &'a Vec<PathBuf>,
+    files: &'a [PathBuf],
 ) -> HashMap<&'a PathBuf, Result<Vec<String>, Error>> {
     let mut result: HashMap<&PathBuf, Result<Vec<String>, Error>> = HashMap::new();
     for file in files {
@@ -36,7 +36,7 @@ pub fn find_string_in_multiple_files<'a>(
 
 pub fn find_string_in_multiple_files_async_native_threads_with_data_clone<'a>(
     search_str: &str,
-    files: &'a Vec<PathBuf>,
+    files: &'a [PathBuf],
 ) -> HashMap<&'a PathBuf, Result<Vec<String>, Error>> {
     let mut handles = vec![];
     for file in files {
@@ -59,7 +59,7 @@ pub fn find_string_in_multiple_files_async_native_threads_with_data_clone<'a>(
 
 pub fn find_string_in_multiple_files_async_native_threads_with_arc<'a>(
     search_str: &str,
-    files: &'a Vec<PathBuf>,
+    files: &'a [PathBuf],
 ) -> HashMap<&'a PathBuf, Result<Vec<String>, Error>> {
     let mut handles = vec![];
     for file in files {
@@ -80,7 +80,7 @@ pub fn find_string_in_multiple_files_async_native_threads_with_arc<'a>(
 
 pub fn find_string_in_multiple_files_async_native_threads_with_thread_scope<'a>(
     search_str: &str,
-    files: &'a Vec<PathBuf>,
+    files: &'a [PathBuf],
 ) -> HashMap<&'a PathBuf, Result<Vec<String>, Error>> {
     thread::scope(|s| {
         let mut handles = vec![];
@@ -102,9 +102,9 @@ mod tests {
 
     use std::io::ErrorKind;
 
-    use super::*;
+    use rstest::rstest;
 
-    const MULTIPLE_FILES_SEARCH_FN: MultipleFilesSearchFunctionType = find_string_in_multiple_files;
+    use super::*;
 
     fn check_length_and_items_single_file(
         desired_size: usize,
@@ -161,14 +161,18 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_multiple_files_two_files_exists() {
+    #[rstest]
+    #[case(find_string_in_multiple_files)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_arc)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_data_clone)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_thread_scope)]
+    fn test_multiple_files_two_files_exists(#[case] fun: MultipleFilesSearchFunctionType) {
         let search_str = "INFO";
         let file_paths = vec![
             std::path::PathBuf::from("tests/data/simple_logs.logs"),
             std::path::PathBuf::from("tests/data/simple_logs_2.logs"),
         ];
-        let file_name_result_map = MULTIPLE_FILES_SEARCH_FN(search_str, &file_paths);
+        let file_name_result_map = fun(search_str, &file_paths);
         assert_eq!(file_name_result_map.len(), 2);
         for (file, lines_result) in file_name_result_map {
             assert!(lines_result.is_ok());
@@ -190,14 +194,20 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_multiple_files_one_file_exists_and_one_doesnt() {
+    #[rstest]
+    #[case(find_string_in_multiple_files)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_arc)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_data_clone)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_thread_scope)]
+    fn test_multiple_files_one_file_exists_and_one_doesnt(
+        #[case] fun: MultipleFilesSearchFunctionType,
+    ) {
         let search_str = "INFO";
         let file_paths = vec![
             std::path::PathBuf::from("tests/data/simple_logs.logs"),
             std::path::PathBuf::from("non-existing/abracadabra/file"),
         ];
-        let file_name_result_map = MULTIPLE_FILES_SEARCH_FN(search_str, &file_paths);
+        let file_name_result_map = fun(search_str, &file_paths);
         assert_eq!(file_name_result_map.len(), 2);
         for (file, lines_result) in file_name_result_map {
             match file.to_str().unwrap() {
@@ -223,14 +233,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_multiple_files_both_files_dont_exist() {
+    #[rstest]
+    #[case(find_string_in_multiple_files)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_arc)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_data_clone)]
+    #[case(find_string_in_multiple_files_async_native_threads_with_thread_scope)]
+    fn test_multiple_files_both_files_dont_exist(#[case] fun: MultipleFilesSearchFunctionType) {
         let search_str = "INFO";
         let file_paths = vec![
             std::path::PathBuf::from("non-existing/abracadabra/file2"),
             std::path::PathBuf::from("non-existing/abracadabra/file"),
         ];
-        let file_name_result_map = MULTIPLE_FILES_SEARCH_FN(search_str, &file_paths);
+        let file_name_result_map = fun(search_str, &file_paths);
         assert_eq!(file_name_result_map.len(), 2);
         for (file, lines_result) in file_name_result_map {
             assert!(lines_result.is_err());
