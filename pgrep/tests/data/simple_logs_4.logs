@@ -1,0 +1,5 @@
+2026-09-11T10:01:03Z INFO server started
+2026-09-11T10:01:03Z INFO server checked
+2026-09-11T10:01:03Z INFO server connecting
+2026-09-11T10:01:05Z ERROR connection refused
+2026-09-11T10:01:07Z WARN retrying
