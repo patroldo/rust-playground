@@ -2,12 +2,12 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader, Error},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     thread,
 };
 
-pub fn find_string_in_file(search_str: &str, file: &PathBuf) -> Result<Vec<String>, Error> {
+pub fn find_string_in_file(search_str: &str, file: &Path) -> Result<Vec<String>, Error> {
     let f = File::open(file)?;
     let mut result = vec![];
     let buf_reader = BufReader::new(f);
@@ -57,6 +57,10 @@ pub fn find_string_in_multiple_files_async_native_threads_with_data_clone<'a>(
         .collect()
 }
 
+// Actually here using of Arc is not necessary
+// Basically we just creating references to clones which repeats previous excerices
+// Ideally - this function should accept Arc reference to search str and slice of arc references to files
+// Implemented for the sake of working with Arc references
 pub fn find_string_in_multiple_files_async_native_threads_with_arc<'a>(
     search_str: &str,
     files: &'a [PathBuf],
