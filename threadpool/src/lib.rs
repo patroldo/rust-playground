@@ -1,9 +1,9 @@
-pub mod async_shared_queue_thread_pool;
+pub mod async_shared_channel_thread_pool;
 pub mod round_robin_thread_pool;
 pub mod shared_queue_thread_pool;
 
 pub trait ThreadPool {
-    fn new(thread_pool_size: usize) -> Self;
+    fn new(thread_pool_size: usize) -> impl ThreadPool;
     fn execute_task(&self, fun: impl FnOnce() + Send + 'static);
     fn stop_threads(self);
 }

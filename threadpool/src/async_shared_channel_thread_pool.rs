@@ -48,7 +48,7 @@ impl Worker for PullWorker {
 }
 
 impl ThreadPool for SharedChannelThreadPool {
-    fn new(thread_pool_size: usize) -> Self {
+    fn new(thread_pool_size: usize) -> impl ThreadPool {
         let (tx, rx) = channel();
         let rx_wrapped = Arc::new(Mutex::new(rx));
         let workers = (0..thread_pool_size)

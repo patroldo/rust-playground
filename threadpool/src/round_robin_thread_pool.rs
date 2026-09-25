@@ -17,7 +17,7 @@ pub struct RoundRobinThreadPool {
 }
 
 impl ThreadPool for RoundRobinThreadPool {
-    fn new(thread_pool_size: usize) -> Self {
+    fn new(thread_pool_size: usize) -> impl ThreadPool {
         let workers_vector = (0..thread_pool_size)
             .into_iter()
             .map(|_| WorkerForRoundRobin::new())

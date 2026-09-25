@@ -1,25 +1,16 @@
 use std::{
     collections::VecDeque,
-    sync::{
-        Arc, Mutex,
-        mpsc::{Sender, channel},
-    },
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
     time::Duration,
 };
 
-use crate::{ThreadPool, Worker};
+use crate::{ThreadPool, Worker, WorkerMessage};
 
-type TasksQueueType = VecDeque<Box<dyn FnOnce() + Send + 'static>>;
-
-#[derive(PartialEq)]
-enum WorkerMessage {
-    Exit,
-}
+type TasksQueueType = VecDeque<WorkerMessage>;
 
 struct PullWorker {
     join_handler: JoinHandle<()>,
-    sender: Sender<WorkerMessage>,
 }
 
 pub struct SharedQueueThreadPool {
@@ -29,38 +20,35 @@ pub struct SharedQueueThreadPool {
 
 impl PullWorker {
     fn new(tasks_queue: Arc<Mutex<TasksQueueType>>) -> Self {
-        let (tx, rx) = channel();
         let join_handler = thread::spawn(move || {
             loop {
-                if rx.try_recv().is_ok() {
-                    break;
-                }
                 let optional_task;
                 {
                     optional_task = (*tasks_queue.lock().unwrap()).pop_front();
                 }
-                if let Some(task) = optional_task {
-                    task();
+                if let Some(message) = optional_task {
+                    match message {
+                        WorkerMessage::SomeFun(fn_once) => {
+                            fn_once();
+                        }
+                        WorkerMessage::Exit => break,
+                    }
                 }
                 thread::sleep(Duration::from_millis(10));
             }
         });
-        Self {
-            join_handler,
-            sender: tx,
-        }
+        Self { join_handler }
     }
 }
 
 impl Worker for PullWorker {
     fn stop(self) {
-        self.sender.send(WorkerMessage::Exit).unwrap();
         self.join_handler.join().unwrap();
     }
 }
 
 impl ThreadPool for SharedQueueThreadPool {
-    fn new(thread_pool_size: usize) -> Self {
+    fn new(thread_pool_size: usize) -> impl ThreadPool {
         let tasks = Arc::new(Mutex::new(VecDeque::new()));
         let workers = (0..thread_pool_size)
             .into_iter()
@@ -74,10 +62,14 @@ impl ThreadPool for SharedQueueThreadPool {
 
     fn execute_task(&self, fun: impl FnOnce() + Send + 'static) {
         let mut mutex_guard = self.tasks_queue.lock().unwrap();
-        (*mutex_guard).push_back(Box::new(fun));
+        (*mutex_guard).push_back(WorkerMessage::SomeFun(Box::new(fun)));
     }
 
     fn stop_threads(self) {
+        self.workers.iter().for_each(|_| {
+            let mut mutex_guard = self.tasks_queue.lock().unwrap();
+            (*mutex_guard).push_back(WorkerMessage::Exit);
+        });
         self.workers.into_iter().for_each(|w| w.stop());
     }
 }

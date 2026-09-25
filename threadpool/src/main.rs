@@ -1,12 +1,9 @@
 use std::{thread, time::Duration};
 
-use threadpool::{
-    ThreadPool, async_shared_queue_thread_pool::SharedChannelThreadPool,
-    round_robin_thread_pool::RoundRobinThreadPool, shared_queue_thread_pool::SharedQueueThreadPool,
-};
+use threadpool::{ThreadPool, shared_queue_thread_pool::SharedQueueThreadPool};
 
 fn main() {
-    let thread_pool = SharedChannelThreadPool::new(4);
+    let thread_pool = SharedQueueThreadPool::new(4);
     thread_pool.execute_task(|| {
         thread::sleep(Duration::from_secs(3));
         println!("123");
