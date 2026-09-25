@@ -1,3 +1,6 @@
+# Backlog
+Implement "show_line_numbers" functinality. It's requiring changes in format output - basically it need to return not only found lines, but rather couple (String, u32). But it also requires implement to validate the file so that number of lines inside that file cannot be bigger than u32::MAX
+
 # Prerequisites
 Install the rust toolchain in order to have cargo installed by following
   [this](https://www.rust-lang.org/tools/install) guide.
