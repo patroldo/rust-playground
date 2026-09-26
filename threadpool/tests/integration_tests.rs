@@ -1,9 +1,10 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Condvar, Mutex, mpsc::channel},
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use assert_cmd::assert;
 use rstest::rstest;
 use threadpool::{
     ThreadPool, async_shared_channel_thread_pool::SharedChannelThreadPool,
@@ -155,4 +156,81 @@ fn test_four_threads_hunder_executions(#[case] thread_pool: impl ThreadPool) {
     thread_pool.stop_threads();
     let x = *x.lock().unwrap();
     assert_eq!(100, x);
+}
+
+#[rstest]
+#[case(RoundRobinThreadPool::new(2))]
+#[case(SharedQueueThreadPool::new(2))]
+#[case(SharedChannelThreadPool::new(2))]
+fn check_threads_concurrency(#[case] thread_pool: impl ThreadPool) {
+    let (tx, rx) = channel();
+    let condvar = Arc::new((Mutex::new(false), Condvar::new()));
+    let condvar_clone = condvar.clone();
+    let tx_clone = tx.clone();
+
+    thread_pool.execute_task(move || {
+        tx_clone.send(()).unwrap();
+        let mut guard = condvar_clone.0.lock().unwrap();
+        while !*guard {
+            guard = condvar_clone.1.wait(guard).unwrap();
+        }
+    });
+    let condvar_clone = condvar.clone();
+    let tx_clone = tx.clone();
+    thread_pool.execute_task(move || {
+        tx_clone.send(()).unwrap();
+        let mut guard = condvar_clone.0.lock().unwrap();
+        while !*guard {
+            guard = condvar_clone.1.wait(guard).unwrap();
+        }
+    });
+    let one_res = rx.recv_timeout(Duration::from_secs(1));
+    let second_res = rx.recv_timeout(Duration::from_secs(1));
+    {
+        let mut guard = condvar.0.lock().unwrap();
+        *guard = true;
+    }
+    condvar.1.notify_all();
+    thread_pool.stop_threads();
+    assert!(one_res.is_ok());
+    assert!(second_res.is_ok());
+}
+
+#[rstest]
+#[case(RoundRobinThreadPool::new(1))]
+#[case(SharedQueueThreadPool::new(1))]
+#[case(SharedChannelThreadPool::new(1))]
+fn single_worker_does_not_execute_jobs_concurrently(#[case] thread_pool: impl ThreadPool) {
+    use std::sync::mpsc::RecvTimeoutError;
+
+    let (tx, rx) = channel();
+    let condvar = Arc::new((Mutex::new(false), Condvar::new()));
+    let condvar_clone = condvar.clone();
+    let tx_clone = tx.clone();
+    thread_pool.execute_task(move || {
+        tx_clone.send(()).unwrap();
+        let mut guard = condvar_clone.0.lock().unwrap();
+        while !*guard {
+            guard = condvar_clone.1.wait(guard).unwrap();
+        }
+    });
+    let condvar_clone = condvar.clone();
+    let tx_clone = tx.clone();
+    thread_pool.execute_task(move || {
+        tx_clone.send(()).unwrap();
+        let mut guard = condvar_clone.0.lock().unwrap();
+        while !*guard {
+            guard = condvar_clone.1.wait(guard).unwrap();
+        }
+    });
+    let one_res = rx.recv_timeout(Duration::from_secs(1));
+    let second_res = rx.recv_timeout(Duration::from_secs(1));
+    {
+        let mut guard = condvar.0.lock().unwrap();
+        *guard = true;
+    }
+    condvar.1.notify_all();
+    thread_pool.stop_threads();
+    assert!(one_res.is_ok());
+    assert!(matches!(second_res, Err(RecvTimeoutError::Timeout)));
 }
