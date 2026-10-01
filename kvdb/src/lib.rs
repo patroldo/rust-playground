@@ -1,215 +1,77 @@
+pub mod cli_parser;
+mod in_memory_kvdb;
+
+use cli_parser::Commands;
+use in_memory_kvdb::InMemoryKVDB;
+
 #[derive(PartialEq, Debug)]
-pub enum Commands<'a> {
-    Exit,
-    Get(&'a str),
-    Set(&'a str, &'a str),
-    Delete(&'a str),
+pub enum KVDBErrors {
+    NoSuchKey,
 }
 
-trait ReverseOptionToResult<T> {
-    fn none_or_err(self) -> Result<(), T>;
+pub enum KVDBType {
+    InMemory,
 }
 
-// option<Some(v), None> -> result<Ok(v), Err(custom)>
-// option<Some(v), None> -> result<Err(v), Ok(custom>)
-
-impl<T> ReverseOptionToResult<T> for Option<T> {
-    fn none_or_err(self) -> Result<(), T> {
-        match self {
-            Some(v) => Err(v),
-            None => Ok(()),
+impl KVDBType {
+    pub fn create_kvdb(kvdb_type: KVDBType) -> impl KVDB
+    where
+        Self: Sized,
+    {
+        match kvdb_type {
+            KVDBType::InMemory => InMemoryKVDB::new(),
         }
     }
 }
 
-impl<'a> TryFrom<&'a str> for Commands<'a> {
-    type Error = &'a str;
+pub trait KVDB {
+    fn get(&self, key: &str) -> Result<&str, KVDBErrors>;
+    fn set(&mut self, key: String, value: String) -> Result<(), KVDBErrors>;
+    fn delete(&mut self, key: &str) -> Result<String, KVDBErrors>;
+}
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        let mut splitted_iter = value.trim().splitn(3, " ");
-        let command = splitted_iter.next().unwrap();
-        match command {
-            "/q" => Ok(Self::Exit),
-            "Get" => {
-                let key = splitted_iter.next().ok_or("Coudn't fetch a key")?;
-                splitted_iter
-                    .next()
-                    .none_or_err()
-                    .map_err(|_| "Incorrect format of get command")?;
-                if key.is_empty() {
-                    Err("Empty key")
-                } else {
-                    Ok(Self::Get(key))
-                }
-            }
-            "Set" => {
-                let key = splitted_iter.next().ok_or("Coudn't fetch a key")?;
-                let value = splitted_iter.next().ok_or("Coudn't fetch a value")?;
-                if key.is_empty() {
-                    Err("Empty key")
-                } else {
-                    Ok(Self::Set(key, value))
-                }
-            }
-            "Delete" => {
-                let key = splitted_iter.next().ok_or("Coudn't fetch a key")?;
-                splitted_iter
-                    .next()
-                    .none_or_err()
-                    .map_err(|_| "Incorrect format of delete command")?;
-                if key.is_empty() {
-                    Err("Empty key")
-                } else {
-                    Ok(Self::Get(key))
-                }
-            }
-            _ => Err("Incorrect command"),
-        }
+pub fn apply_command_to_kvdb(kvdb: &mut impl KVDB, command: Commands) -> String {
+    match command {
+        Commands::Get(key) => match kvdb.get(&key) {
+            Ok(val) => val.to_owned(),
+            Err(e) => format!("{:?}", e),
+        },
+        Commands::Set(key, val) => match kvdb.set(key, val) {
+            Ok(_) => "Ok".to_owned(),
+            Err(e) => format!("{:?}", e),
+        },
+        Commands::Delete(key) => match kvdb.delete(&key) {
+            Ok(val) => val,
+            Err(e) => format!("{:?}", e),
+        },
+        _ => unreachable!(),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
-    mod get_command_tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_get_command() {
-            let command_str = "Get key1";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_ok());
-            let parsed_command = parsed_command.unwrap();
-            assert_eq!(parsed_command, Commands::Get("key1"));
-        }
-
-        #[test]
-        fn test_parse_get_with_empty_key() {
-            let command_str = "Get  ";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Coudn't fetch a key");
-        }
-
-        #[test]
-        fn test_parse_get_with_no_key_passed() {
-            let command_str = "Get";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Coudn't fetch a key");
-        }
-
-        #[test]
-        fn test_parse_get_key_extra_param() {
-            let command_str = "Get key1 random";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Incorrect format of get command");
-        }
-    }
-
-    mod delete_command_tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_delete_command() {
-            let command_str = "Delete key1";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_ok());
-            let parsed_command = parsed_command.unwrap();
-            assert_eq!(parsed_command, Commands::Get("key1"));
-        }
-
-        #[test]
-        fn test_parse_delete_with_empty_key() {
-            let command_str = "Delete  ";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Coudn't fetch a key");
-        }
-
-        #[test]
-        fn test_parse_delete_with_no_key_passed() {
-            let command_str = "Delete";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Coudn't fetch a key");
-        }
-
-        #[test]
-        fn test_parse_delete_key_extra_param() {
-            let command_str = "Delete key1 random";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Incorrect format of delete command");
-        }
-    }
-
-    mod set_command_tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_set_command() {
-            let command_str = "Set key1 val1";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_ok());
-            let parsed_command = parsed_command.unwrap();
-            assert_eq!(parsed_command, Commands::Set("key1", "val1"));
-        }
-
-        #[test]
-        fn test_parse_set_command_multi_value_string() {
-            let command_str = "Set key1 Sentence for the test";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_ok());
-            let parsed_command = parsed_command.unwrap();
-            assert_eq!(
-                parsed_command,
-                Commands::Set("key1", "Sentence for the test")
-            );
-        }
-
-        #[test]
-        fn test_parse_empty_key() {
-            let command_str = "Set  val1";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Empty key");
-        }
-
-        #[test]
-        fn test_parse_empty_value() {
-            let command_str = "Set key1 ";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Coudn't fetch a value");
-        }
-
-        #[test]
-        fn test_parse_value_not_passed() {
-            let command_str = "Set key1";
-            let parsed_command = Commands::try_from(command_str);
-            assert!(parsed_command.is_err());
-            let parsed_command = parsed_command.unwrap_err();
-            assert_eq!(parsed_command, "Coudn't fetch a value");
-        }
-    }
-
-    #[test]
-    fn test_fail_to_parse_command() {
-        let command_str = "Gett";
-        let parsed_command = Commands::try_from(command_str);
-        assert!(parsed_command.is_err());
-        let parsed_command = parsed_command.unwrap_err();
-        assert_eq!(parsed_command, "Incorrect command");
+    #[rstest]
+    #[case(KVDBType::InMemory)]
+    fn test_in_memory_kvdb(#[case] db_type: KVDBType) {
+        let mut db = KVDBType::create_kvdb(db_type);
+        let res = db.get("key1");
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), KVDBErrors::NoSuchKey);
+        //--------------------------------------------------
+        let res = db.set("key1".to_string(), "val1".to_string());
+        assert!(res.is_ok());
+        let res = db.get("key1");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), "val1");
+        //--------------------------------------------------
+        let res = db.delete("key1");
+        assert!(res.is_ok());
+        let res = db.get("key1");
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), KVDBErrors::NoSuchKey);
     }
 }
