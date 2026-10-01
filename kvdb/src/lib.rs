@@ -14,7 +14,7 @@ pub enum KVDBType {
 }
 
 impl KVDBType {
-    pub fn create_kvdb(kvdb_type: KVDBType) -> Box<impl KVDB>
+    pub fn create_kvdb(kvdb_type: KVDBType) -> Box<dyn KVDB>
     where
         Self: Sized,
     {
@@ -30,7 +30,7 @@ pub trait KVDB {
     fn delete(&mut self, key: &str) -> Result<String, KVDBErrors>;
 }
 
-pub fn apply_command_to_kvdb(kvdb: &mut Box<impl KVDB>, command: Commands) -> String {
+pub fn apply_command_to_kvdb(kvdb: &mut dyn KVDB, command: Commands) -> String {
     match command {
         Commands::Get(key) => match kvdb.get(&key) {
             Ok(val) => val.to_owned(),
@@ -79,12 +79,12 @@ mod tests {
     fn apply_command_to_kvdb_get() {
         let mut db = KVDBType::create_kvdb(KVDBType::InMemory);
         let command = Commands::Get("key".to_owned());
-        assert_eq!("NoSuchKey", apply_command_to_kvdb(&mut db, command));
+        assert_eq!("NoSuchKey", apply_command_to_kvdb(db.as_mut(), command));
         db.set("key".to_owned(), "val".to_owned()).unwrap();
         let command = Commands::Get("key".to_owned());
-        assert_eq!("val", apply_command_to_kvdb(&mut db, command));
+        assert_eq!("val", apply_command_to_kvdb(db.as_mut(), command));
         let command = Commands::Get("key".to_owned());
-        assert_eq!("val", apply_command_to_kvdb(&mut db, command));
+        assert_eq!("val", apply_command_to_kvdb(db.as_mut(), command));
     }
 
     #[test]
@@ -92,7 +92,7 @@ mod tests {
         let mut db = KVDBType::create_kvdb(KVDBType::InMemory);
         assert_eq!(KVDBErrors::NoSuchKey, db.get("key").unwrap_err());
         let command = Commands::Set("key".to_owned(), "val321".to_owned());
-        assert_eq!("Ok", apply_command_to_kvdb(&mut db, command));
+        assert_eq!("Ok", apply_command_to_kvdb(db.as_mut(), command));
         assert_eq!("val321", db.get("key").unwrap());
     }
 
@@ -100,10 +100,11 @@ mod tests {
     fn apply_command_to_kvdb_delete() {
         let mut db = KVDBType::create_kvdb(KVDBType::InMemory);
         assert_eq!(KVDBErrors::NoSuchKey, db.get("key").unwrap_err());
-        let command = Commands::Set("key".to_owned(), "val321".to_owned());
-        assert_eq!("Ok", apply_command_to_kvdb(&mut db, command));
+        db.set("key".to_owned(), "val321".to_owned()).unwrap();
         assert_eq!("val321", db.get("key").unwrap());
-        assert_eq!("val321", db.delete("key").unwrap());
-        assert_eq!(KVDBErrors::NoSuchKey, db.delete("key").unwrap_err());
+        let command = Commands::Delete("key".to_owned());
+        assert_eq!("val321", apply_command_to_kvdb(db.as_mut(), command));
+        let command = Commands::Delete("key".to_owned());
+        assert_eq!("NoSuchKey", apply_command_to_kvdb(db.as_mut(), command));
     }
 }

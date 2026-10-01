@@ -21,7 +21,7 @@ impl KVDB for InMemoryKVDB {
     }
 
     fn set(&mut self, key: String, value: String) -> Result<(), KVDBErrors> {
-        self.hashmap.insert(key, value.to_owned());
+        self.hashmap.insert(key, value);
         Ok(())
     }
 

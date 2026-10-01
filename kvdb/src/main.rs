@@ -11,7 +11,7 @@ fn main() -> io::Result<()> {
         io::stdin().read_line(&mut buffer)?;
         match Commands::try_from(buffer.trim()) {
             Ok(Commands::Exit) => break,
-            Ok(command) => println!("{}", apply_command_to_kvdb(&mut kvdb, command)),
+            Ok(command) => println!("{}", apply_command_to_kvdb(kvdb.as_mut(), command)),
             Err(e) => println!("{:?}", e),
         }
     }

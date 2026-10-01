@@ -3,7 +3,7 @@ use std::process::Command;
 use rexpect::session::spawn_command;
 
 #[test]
-fn test_search_single_file() {
+fn test_full_create_get_delete_exit_interaction() {
     let bin_path = assert_cmd::cargo::cargo_bin("kvdb");
     let cmd = Command::new(bin_path);
     let mut session = spawn_command(cmd, Some(1000)).unwrap();
