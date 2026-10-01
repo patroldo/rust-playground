@@ -15,9 +15,9 @@ impl InMemoryKVDB {
 }
 
 impl KVDB for InMemoryKVDB {
-    fn get(&self, key: &str) -> Result<&str, KVDBErrors> {
+    fn get(&self, key: &str) -> Result<String, KVDBErrors> {
         let val = self.hashmap.get(key).ok_or(KVDBErrors::NoSuchKey)?;
-        Ok(val)
+        Ok(val.to_owned())
     }
 
     fn set(&mut self, key: String, value: String) -> Result<(), KVDBErrors> {
