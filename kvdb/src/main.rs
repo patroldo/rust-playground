@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use kvdb::{KVDBType, apply_command_to_kvdb, cli_parser::Commands};
 
 fn main() -> io::Result<()> {
-    let mut kvdb = KVDBType::create_kvdb(KVDBType::InMemory);
+    let mut kvdb = KVDBType::create_kvdb(KVDBType::FileBased(None)).unwrap();
     loop {
         print!("kvdb> ");
         io::stdout().flush().unwrap();
