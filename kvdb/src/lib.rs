@@ -14,7 +14,7 @@ pub enum KVDBErrors {
 
 pub enum KVDBType<'a> {
     InMemory,
-    FileBased(Option<&'a str>),
+    FileBased(&'a str),
 }
 
 impl<'a> KVDBType<'a> {
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn test_file_based_kvdb() {
         let tmp_file = Builder::new().prefix("test_tmp_kvdb").tempfile().unwrap();
-        test_kvdb_implementations(KVDBType::FileBased(tmp_file.path().to_str()));
+        test_kvdb_implementations(KVDBType::FileBased(tmp_file.path().to_str().unwrap()));
         drop(tmp_file);
     }
 

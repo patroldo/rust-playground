@@ -8,6 +8,7 @@ shell-words = "1.1.1"
 csv = "1"
 serde = { version = "1.0.229", features = ["derive"] }
 tempfile = "3.27.0"
+clap = { version = "4.6.6", features = ["derive"] }
 
 [dev-dependencies]
 rstest = "0.27.0"

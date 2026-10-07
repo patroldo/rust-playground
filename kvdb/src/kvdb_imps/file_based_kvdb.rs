@@ -1,9 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    fs::{self, File},
-    path::PathBuf,
-};
+use std::{collections::HashMap, fs, path::PathBuf};
 use tempfile::Builder;
 
 use crate::{KVDB, KVDBErrors};
@@ -21,14 +17,10 @@ pub struct FileBasedKVDB {
 }
 
 impl FileBasedKVDB {
-    pub fn new(option_path_str: Option<&str>) -> Result<Self, KVDBErrors> {
-        let path_str = option_path_str.unwrap_or("./kvdb.file");
+    pub fn new(path_str: &str) -> Result<Self, KVDBErrors> {
         let pathbuf = PathBuf::from(path_str);
         if pathbuf.is_dir() {
             return Err(KVDBErrors::Other("Path is a folder".to_owned()));
-        }
-        if !pathbuf.exists() {
-            File::create(&pathbuf).map_err(|e| KVDBErrors::Other(e.to_string()))?;
         }
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
@@ -154,7 +146,7 @@ mod tests {
         let val = try_to_find_key_in_file(key, tmp_file.path());
         assert!(val.is_some());
         let val = val.unwrap();
-        let kvdb = FileBasedKVDB::new(Some(tmp_file.path().to_str().unwrap())).unwrap();
+        let kvdb = FileBasedKVDB::new(tmp_file.path().to_str().unwrap()).unwrap();
         let kvdb_get_res = kvdb.get(key);
         assert!(kvdb_get_res.is_ok());
         assert_eq!(kvdb_get_res.unwrap(), val);
@@ -169,7 +161,7 @@ mod tests {
         fs::copy(&original_file, &tmp_file).unwrap();
         let val = try_to_find_key_in_file(&key, tmp_file.path());
         assert!(val.is_none());
-        let mut kvdb = FileBasedKVDB::new(Some(tmp_file.path().to_str().unwrap())).unwrap();
+        let mut kvdb = FileBasedKVDB::new(tmp_file.path().to_str().unwrap()).unwrap();
         let kvdb_get_res = kvdb.set(key.clone(), value.clone());
         assert!(kvdb_get_res.is_ok());
         let val = try_to_find_key_in_file(&key, tmp_file.path());
@@ -185,7 +177,7 @@ mod tests {
         fs::copy(&original_file, &tmp_file).unwrap();
         let val = try_to_find_key_in_file(key, tmp_file.path());
         assert!(val.is_some());
-        let mut kvdb = FileBasedKVDB::new(Some(tmp_file.path().to_str().unwrap())).unwrap();
+        let mut kvdb = FileBasedKVDB::new(tmp_file.path().to_str().unwrap()).unwrap();
         let kvdb_get_res = kvdb.get(key);
         assert!(kvdb_get_res.is_ok());
         let deletion_result = kvdb.delete(key);
