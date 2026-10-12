@@ -46,7 +46,7 @@ impl FileBasedKVDB {
     ) -> Result<(), crate::KVDBErrors> {
         let tmp_file = Builder::new()
             .prefix("test_kvdb")
-            .tempfile()
+            .tempfile_in(self.file.parent().unwrap())
             .map_err(|_| KVDBErrors::Other("Coudn't create temp file".to_owned()))?;
         let mut writer = csv::WriterBuilder::new()
             .has_headers(false)
