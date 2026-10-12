@@ -51,8 +51,7 @@ impl FileBasedKVDB {
         {
             let mut writer = csv::WriterBuilder::new()
                 .has_headers(false)
-                .from_path(tmp_file.path())
-                .map_err(|e| KVDBErrors::Other(e.to_string()))?;
+                .from_writer(&tmp_file);
             let write_result: Result<Vec<()>, KVDBErrors> = tmp_hashmap
                 .iter()
                 .map(|(key, value)| Row {
