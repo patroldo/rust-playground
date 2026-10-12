@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 use tempfile::Builder;
 
 use crate::{KVDB, KVDBErrors};
@@ -39,6 +39,41 @@ impl FileBasedKVDB {
             hashmap,
         })
     }
+
+    fn persist_changes(
+        &mut self,
+        tmp_hashmap: HashMap<String, String>,
+    ) -> Result<(), crate::KVDBErrors> {
+        let tmp_file = Builder::new()
+            .prefix("test_kvdb")
+            .tempfile()
+            .map_err(|_| KVDBErrors::Other("Coudn't create temp file".to_owned()))?;
+        let mut writer = csv::WriterBuilder::new()
+            .has_headers(false)
+            .from_path(tmp_file.path())
+            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
+        let write_result: Result<Vec<()>, KVDBErrors> = tmp_hashmap
+            .iter()
+            .map(|(key, value)| Row {
+                key: key.to_owned(),
+                value: value.to_owned(),
+            })
+            .map(|item| {
+                writer
+                    .serialize(item)
+                    .map_err(|e| KVDBErrors::Other(e.to_string()))
+            })
+            .collect();
+        write_result?;
+        writer
+            .flush()
+            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
+        tmp_file
+            .persist(&self.file)
+            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
+        self.hashmap = tmp_hashmap;
+        Ok(())
+    }
 }
 
 impl KVDB for FileBasedKVDB {
@@ -52,65 +87,15 @@ impl KVDB for FileBasedKVDB {
 
     fn set(&mut self, key: String, value: String) -> Result<(), crate::KVDBErrors> {
         let mut tmp_hashmap = self.hashmap.clone();
-        let tmp_file = Builder::new()
-            .prefix("test_kvdb")
-            .tempfile()
-            .map_err(|_| KVDBErrors::Other("Coudn't create temp file".to_owned()))?;
         tmp_hashmap.insert(key.to_owned(), value);
-        let mut writer = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_path(tmp_file.path())
-            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
-        let write_result: Result<Vec<()>, KVDBErrors> = tmp_hashmap
-            .iter()
-            .map(|(key, value)| Row {
-                key: key.to_owned(),
-                value: value.to_owned(),
-            })
-            .map(|item| {
-                writer
-                    .serialize(item)
-                    .map_err(|e| KVDBErrors::Other(e.to_string()))
-            })
-            .collect();
-        write_result?;
-        writer
-            .flush()
-            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
-        fs::copy(&tmp_file, &self.file).map_err(|e| KVDBErrors::Other(e.to_string()))?;
-        self.hashmap = tmp_hashmap;
+        self.persist_changes(tmp_hashmap)?;
         Ok(())
     }
 
     fn delete(&mut self, key: &str) -> Result<String, crate::KVDBErrors> {
         let mut tmp_hashmap = self.hashmap.clone();
-        let tmp_file = Builder::new()
-            .prefix("test_kvdb")
-            .tempfile()
-            .map_err(|_| KVDBErrors::Other("Coudn't create temp file".to_owned()))?;
         let val = tmp_hashmap.remove(key).ok_or(KVDBErrors::NoSuchKey)?;
-        let mut writer = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_path(tmp_file.path())
-            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
-        let write_result: Result<Vec<()>, KVDBErrors> = tmp_hashmap
-            .iter()
-            .map(|(key, value)| Row {
-                key: key.to_owned(),
-                value: value.to_owned(),
-            })
-            .map(|item| {
-                writer
-                    .serialize(item)
-                    .map_err(|e| KVDBErrors::Other(e.to_string()))
-            })
-            .collect();
-        write_result?;
-        writer
-            .flush()
-            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
-        fs::copy(&tmp_file, &self.file).map_err(|e| KVDBErrors::Other(e.to_string()))?;
-        self.hashmap = tmp_hashmap;
+        self.persist_changes(tmp_hashmap)?;
         Ok(val)
     }
 }
@@ -188,5 +173,24 @@ mod tests {
         let kvdb_get_res = kvdb.get(key);
         assert!(kvdb_get_res.is_err());
         assert_eq!(kvdb_get_res.unwrap_err(), KVDBErrors::NoSuchKey);
+    }
+
+    #[test]
+    fn test_db_creation_from_existing_file() {
+        let testfile = tempfile::NamedTempFile::new().unwrap();
+        let mut kvdb = FileBasedKVDB::new(testfile.path().to_str().unwrap()).unwrap();
+        kvdb.set("key1".to_owned(), "val1".to_owned()).unwrap();
+        kvdb.set("key2".to_owned(), "val2".to_owned()).unwrap();
+        kvdb.set("key3".to_owned(), "val3".to_owned()).unwrap();
+        let kvdb = FileBasedKVDB::new(testfile.path().to_str().unwrap()).unwrap();
+        let kvdb_get_res_1 = kvdb.get("key1");
+        let kvdb_get_res_2 = kvdb.get("key2");
+        let kvdb_get_res_3 = kvdb.get("key3");
+        assert!(kvdb_get_res_1.is_ok());
+        assert!(kvdb_get_res_2.is_ok());
+        assert!(kvdb_get_res_3.is_ok());
+        assert_eq!(kvdb_get_res_1.unwrap(), "val1");
+        assert_eq!(kvdb_get_res_2.unwrap(), "val2");
+        assert_eq!(kvdb_get_res_3.unwrap(), "val3");
     }
 }
