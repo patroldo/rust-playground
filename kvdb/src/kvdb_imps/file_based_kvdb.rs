@@ -48,26 +48,29 @@ impl FileBasedKVDB {
             .prefix("test_kvdb")
             .tempfile_in(self.file.parent().unwrap())
             .map_err(|_| KVDBErrors::Other("Coudn't create temp file".to_owned()))?;
-        let mut writer = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_path(tmp_file.path())
-            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
-        let write_result: Result<Vec<()>, KVDBErrors> = tmp_hashmap
-            .iter()
-            .map(|(key, value)| Row {
-                key: key.to_owned(),
-                value: value.to_owned(),
-            })
-            .map(|item| {
-                writer
-                    .serialize(item)
-                    .map_err(|e| KVDBErrors::Other(e.to_string()))
-            })
-            .collect();
-        write_result?;
-        writer
-            .flush()
-            .map_err(|e| KVDBErrors::Other(e.to_string()))?;
+        {
+            let mut writer = csv::WriterBuilder::new()
+                .has_headers(false)
+                .from_path(tmp_file.path())
+                .map_err(|e| KVDBErrors::Other(e.to_string()))?;
+            let write_result: Result<Vec<()>, KVDBErrors> = tmp_hashmap
+                .iter()
+                .map(|(key, value)| Row {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                })
+                .map(|item| {
+                    writer
+                        .serialize(item)
+                        .map_err(|e| KVDBErrors::Other(e.to_string()))
+                })
+                .collect();
+
+            write_result?;
+            writer
+                .flush()
+                .map_err(|e| KVDBErrors::Other(e.to_string()))?;
+        }
         tmp_file
             .persist(&self.file)
             .map_err(|e| KVDBErrors::Other(e.to_string()))?;

@@ -11,9 +11,6 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 struct Cli {
-    #[arg(long, default_value = ".")]
-    root: PathBuf,
-
     #[command(subcommand)]
     command: DbType,
 }
